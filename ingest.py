@@ -1,10 +1,11 @@
 import chromadb
 
-from llama_index.core import SimpleDirectoryReader, VectorStoreIndex, StorageContext, Settings
+from llama_index.core import VectorStoreIndex, StorageContext, Settings
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
+from ocr_loader import load_notes_with_ocr
 
 DATA_DIR = "./data"
 CHROMA_DIR = "./chroma_db"
@@ -31,12 +32,7 @@ Settings.node_parser = SentenceSplitter(
 
 print("Loading documents...")
 
-documents = SimpleDirectoryReader(
-    input_dir=DATA_DIR,
-    recursive=True,
-    required_exts=[".pdf", ".md", ".txt", ".docx", ".pptx"]
-).load_data()
-
+documents = load_notes_with_ocr(DATA_DIR)
 if not documents:
     raise ValueError("No supported files found in the data folder.")
 

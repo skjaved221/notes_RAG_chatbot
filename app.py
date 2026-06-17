@@ -5,7 +5,6 @@ import chromadb
 import streamlit as st
 
 from llama_index.core import (
-    SimpleDirectoryReader,
     VectorStoreIndex,
     StorageContext,
     Settings,
@@ -14,14 +13,17 @@ from llama_index.core.node_parser import SentenceSplitter
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
-
+from ocr_loader import load_notes_with_ocr
 
 DATA_DIR = Path("./data")
 CHROMA_DIR = "./chroma_db"
 COLLECTION_NAME = "my_notes"
 EMBED_MODEL = "nomic-embed-text"
 
-SUPPORTED_EXTENSIONS = [".pdf", ".md", ".txt", ".docx", ".pptx"]
+SUPPORTED_EXTENSIONS = [
+    ".pdf", ".md", ".txt", ".docx", ".pptx",
+    ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"
+]
 
 
 st.set_page_config(page_title="Chat with My Notes", page_icon="📚")
@@ -49,11 +51,7 @@ def setup_models(llm_model: str, context_window: int):
 def rebuild_index():
     DATA_DIR.mkdir(exist_ok=True)
 
-    documents = SimpleDirectoryReader(
-        input_dir=str(DATA_DIR),
-        recursive=True,
-        required_exts=SUPPORTED_EXTENSIONS,
-    ).load_data()
+    documents = load_notes_with_ocr(DATA_DIR)
 
     if not documents:
         st.error("No supported files found in the data folder.")
@@ -121,7 +119,7 @@ with st.sidebar:
 
     uploaded_files = st.file_uploader(
         "Upload notes",
-        type=["pdf", "md", "txt", "docx", "pptx"],
+        type=["pdf", "md", "txt", "docx", "pptx", "png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff"],
         accept_multiple_files=True,
     )
 
