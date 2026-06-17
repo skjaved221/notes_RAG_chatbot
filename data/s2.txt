@@ -1,0 +1,27 @@
+@"
+# Python Study Notes
+
+Python is a beginner-friendly programming language.
+
+Variables store data. Example:
+name = "Javed"
+
+Lists store multiple items:
+fruits = ["apple", "banana", "mango"]
+
+A function is a reusable block of code.
+
+Example:
+def greet(name):
+    return "Hello " + name
+
+Python virtual environments are used to keep project packages separate from other projects.
+
+In this RAG project, the virtual environment folder is called .venv.
+
+The command to activate the virtual environment on Windows PowerShell is:
+.\.venv\Scripts\activate
+
+The command to install packages is:
+pip install package_name
+"@ | Set-Content -Encoding UTF8 data\python_notes.md

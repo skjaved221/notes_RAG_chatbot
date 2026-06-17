@@ -1,0 +1,23 @@
+@"
+# RAG Chatbot Notes
+
+RAG stands for Retrieval-Augmented Generation.
+
+A RAG chatbot answers questions by searching your documents first, then giving the relevant information to an LLM.
+
+The basic RAG pipeline is:
+1. Load documents
+2. Split documents into chunks
+3. Convert chunks into embeddings
+4. Store embeddings in a vector database
+5. Retrieve relevant chunks when the user asks a question
+6. Generate an answer using the retrieved context
+
+In this project, LlamaIndex is used to load and index the documents.
+
+ChromaDB is used as the vector database.
+
+OpenAI is used for embeddings and answer generation.
+
+The chatbot should answer only from the notes. If the answer is not found in the notes, it should say that the information is not available in the notes.
+"@ | Set-Content -Encoding UTF8 data\rag_notes.md

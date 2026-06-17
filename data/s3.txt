@@ -1,0 +1,30 @@
+@"
+# Personal Study Plan
+
+My current goal is to build a chatbot that can answer questions from my own notes.
+
+The project name is notes-rag-bot.
+
+The documents are stored inside the data folder.
+
+The vector database is stored inside the chroma_db folder.
+
+The file ingest.py is used to read notes and create the vector index.
+
+The file app.py is used to run the Streamlit chatbot.
+
+The command to index the notes is:
+python ingest.py
+
+The command to start the chatbot is:
+streamlit run app.py
+
+The chatbot should be tested with simple questions first.
+
+Good test questions:
+- What does RAG stand for?
+- What is ChromaDB used for?
+- What is the purpose of ingest.py?
+- How do I activate the virtual environment?
+- Where are the documents stored?
+"@ | Set-Content -Encoding UTF8 data\study_plan.md
