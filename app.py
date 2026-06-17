@@ -1,4 +1,6 @@
 import os
+import sys
+import subprocess
 from pathlib import Path
 
 import chromadb
@@ -16,6 +18,7 @@ from llama_index.llms.ollama import Ollama
 from ocr_loader import load_notes_with_ocr
 
 DATA_DIR = Path("./data")
+OCR_DIR = DATA_DIR / "_ocr_text"
 CHROMA_DIR = "./chroma_db"
 COLLECTION_NAME = "my_notes"
 EMBED_MODEL = "nomic-embed-text"
@@ -24,7 +27,8 @@ SUPPORTED_EXTENSIONS = [
     ".pdf", ".md", ".txt", ".docx", ".pptx",
     ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"
 ]
-
+ocr_search_query = ""
+show_ocr_preview = False
 
 st.set_page_config(page_title="Chat with My Notes", page_icon="📚")
 st.title("📚 Chat with My Notes")
@@ -50,6 +54,7 @@ def setup_models(llm_model: str, context_window: int):
 
 def rebuild_index():
     DATA_DIR.mkdir(exist_ok=True)
+    OCR_DIR.mkdir(exist_ok=True)
 
     documents = load_notes_with_ocr(DATA_DIR)
 
@@ -88,6 +93,80 @@ def load_index():
     vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
     return VectorStoreIndex.from_vector_store(vector_store=vector_store)
 
+def get_ocr_files():
+    if not OCR_DIR.exists():
+        return []
+
+    return sorted(OCR_DIR.glob("*.txt"))
+
+
+def get_ocr_stats():
+    ocr_files = get_ocr_files()
+
+    total_characters = 0
+
+    for file in ocr_files:
+        try:
+            total_characters += len(file.read_text(encoding="utf-8", errors="ignore"))
+        except Exception:
+            pass
+
+    return {
+        "ocr_folder_exists": OCR_DIR.exists(),
+        "file_count": len(ocr_files),
+        "total_characters": total_characters,
+    }
+
+
+def search_ocr_text(query: str):
+    query = query.strip().lower()
+
+    if not query:
+        return []
+
+    results = []
+
+    for file in get_ocr_files():
+        try:
+            text = file.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+
+        lower_text = text.lower()
+
+        if query in lower_text:
+            index = lower_text.find(query)
+            start = max(0, index - 300)
+            end = min(len(text), index + 700)
+
+            results.append(
+                {
+                    "file": file.name,
+                    "preview": text[start:end],
+                }
+            )
+
+    return results
+
+
+def run_ocr_script():
+    script_path = Path("make_ocr_notes.py")
+
+    if not script_path.exists():
+        return False, "make_ocr_notes.py was not found in your project folder."
+
+    result = subprocess.run(
+        [sys.executable, str(script_path)],
+        capture_output=True,
+        text=True,
+    )
+
+    output = result.stdout + "\n" + result.stderr
+
+    if result.returncode != 0:
+        return False, output
+
+    return True, output
 
 with st.sidebar:
     st.header("Settings")
@@ -105,16 +184,19 @@ with st.sidebar:
     top_k = st.slider(
         "Number of note chunks to retrieve",
         min_value=1,
-        max_value=5,
-        value=2,
+        max_value=8,
+        value=5,
     )
 
     context_window = st.selectbox(
         "Context window",
         [1024, 2048, 4096],
-        index=0,
+        index=1,
     )
 
+    debug_mode = st.checkbox("Show retrieval debug info", value=False)
+    show_full_chunks = st.checkbox("Show full retrieved chunks", value=False)
+    show_ocr_preview = st.checkbox("Show OCR preview", value=False)
     st.divider()
 
     uploaded_files = st.file_uploader(
@@ -139,16 +221,76 @@ with st.sidebar:
         with st.spinner("Indexing your notes..."):
             success = rebuild_index()
 
-        if success:
-            st.success("Index rebuilt successfully.")
+            if success:
+                st.success("Index rebuilt successfully.")
 
-    if st.button("Clear chat"):
-        st.session_state.messages = []
-        st.rerun()
+        st.divider()
+        st.subheader("OCR Tools")
+
+        ocr_stats = get_ocr_stats()
+
+        if ocr_stats["ocr_folder_exists"]:
+            st.caption("OCR folder found.")
+        else:
+            st.caption("OCR folder not found yet.")
+
+        st.write(f"OCR text files: {ocr_stats['file_count']}")
+        st.write(f"OCR text characters: {ocr_stats['total_characters']}")
+
+        if st.button("Generate OCR text files"):
+            with st.spinner("Running OCR on PDFs/images... This may take some time."):
+                success, output = run_ocr_script()
+
+            if success:
+                st.success("OCR text files generated.")
+            else:
+                st.error("OCR generation failed.")
+
+            with st.expander("OCR script output"):
+                st.text(output)
+
+        ocr_search_query = st.text_input("Search OCR text", placeholder="Example: Swing, MVC, platform")
+
+        show_ocr_preview = st.checkbox("Show OCR preview", value=False)
+
+        if st.button("Clear chat"):
+            st.session_state.messages = []
+            st.rerun()
 
 
 setup_models(llm_model, context_window)
 
+if show_ocr_preview:
+    st.subheader("OCR Text Preview")
+
+    ocr_files = get_ocr_files()
+
+    if not ocr_files:
+        st.warning("No OCR text files found. Click 'Generate OCR text files' in the sidebar first.")
+    else:
+        if ocr_search_query:
+            results = search_ocr_text(ocr_search_query)
+
+            st.write(f"Search results for: `{ocr_search_query}`")
+
+            if not results:
+                st.warning("No matches found in OCR text.")
+            else:
+                for result in results[:10]:
+                    with st.expander(result["file"]):
+                        st.text(result["preview"])
+        else:
+            selected_file = st.selectbox(
+                "Choose an OCR text file to preview",
+                ocr_files,
+                format_func=lambda file: file.name,
+            )
+
+            text = selected_file.read_text(encoding="utf-8", errors="ignore")
+
+            st.write(f"Previewing: `{selected_file.name}`")
+            st.text(text[:5000])
+    
 index = load_index()
 
 if index is None:
@@ -177,12 +319,11 @@ if question:
         with st.spinner("Searching your notes locally..."):
             try:
                 nodes = retriever.retrieve(question)
-
                 context_parts = []
                 sources = []
 
                 for i, node in enumerate(nodes, start=1):
-                    text = node.node.get_content()
+                    chunk_text = node.node.get_content()
                     metadata = node.node.metadata
 
                     file_name = (
@@ -192,44 +333,97 @@ if question:
                     )
 
                     page = metadata.get("page_label") or metadata.get("page") or ""
+                    source_type = metadata.get("source_type", "unknown")
+                    score = getattr(node, "score", None)
 
                     source_label = f"{file_name}"
                     if page:
                         source_label += f" — page {page}"
 
-                    context_parts.append(f"Source {i}: {source_label}\n{text}")
-                    sources.append(source_label)
+                    context_parts.append(
+                        f"Source {i}: {source_label}\n"
+                        f"Source type: {source_type}\n"
+                        f"Text:\n{chunk_text}"
+                    )
+
+                    sources.append(
+                        {
+                            "number": i,
+                            "file_name": file_name,
+                            "page": page,
+                            "source_type": source_type,
+                            "score": score,
+                            "text": chunk_text,
+                        }
+                    )
 
                 context = "\n\n---\n\n".join(context_parts)
 
                 prompt = f"""
-                You are a strict notes-based assistant.
+            You are a strict notes-based assistant.
 
-                Answer the user's question using ONLY the context below.
+            Answer the user's question using ONLY the context below.
 
-                If the answer is not clearly present in the context, say:
-                "I could not find this in your notes."
+            Rules:
+            1. Do not use outside knowledge.
+            2. Do not guess.
+            3. If the answer is clearly present in the context, answer directly.
+            4. If the answer is not clearly present in the context, say: "I could not find this in your notes."
+            5. Mention the source file and page when possible.
 
-                Do not use outside knowledge.
-                Do not guess.
-                Do not answer from unrelated context.
+            Context:
+            {context}
 
-                Context:
-                {context}
+            User question:
+            {question}
 
-                User question:
-                {question}
+            Answer:
+            """
 
-                Answer:
-                """
-
-                answer = Settings.llm.complete(prompt).text
+                answer = Settings.llm.complete(prompt).text.strip()
 
                 st.markdown(answer)
 
                 with st.expander("Sources used"):
-                    for i, source in enumerate(sources, start=1):
-                        st.write(f"{i}. {source}")
+                    for source in sources:
+                        source_line = f"{source['number']}. {source['file_name']}"
+
+                        if source["page"]:
+                            source_line += f" — page {source['page']}"
+
+                        if source["score"] is not None:
+                            source_line += f" — score: {source['score']:.4f}"
+
+                        st.write(source_line)
+
+                if debug_mode:
+                    st.divider()
+                    st.subheader("Retrieval Debug Info")
+
+                    if not sources:
+                        st.warning("No chunks were retrieved from ChromaDB.")
+
+                    for source in sources:
+                        score_text = (
+                            f"{source['score']:.4f}"
+                            if source["score"] is not None
+                            else "No score"
+                        )
+
+                        with st.expander(
+                            f"Chunk {source['number']} | {source['file_name']} | Page {source['page']} | Score: {score_text}"
+                        ):
+                            st.write("**File:**", source["file_name"])
+                            st.write("**Page:**", source["page"] or "Not available")
+                            st.write("**Source type:**", source["source_type"])
+                            st.write("**Score:**", score_text)
+
+                            st.write("**Retrieved text preview:**")
+
+                            if show_full_chunks:
+                                st.text(source["text"])
+                            else:
+                                st.text(source["text"][:1200])
             except Exception as e:
                 answer = f"Error: {e}"
                 st.error(answer)
