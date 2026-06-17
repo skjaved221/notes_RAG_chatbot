@@ -10,12 +10,13 @@ DATA_DIR = "./data"
 CHROMA_DIR = "./chroma_db"
 COLLECTION_NAME = "my_notes"
 
-LLM_MODEL = "llama3.2:3b"
+LLM_MODEL = "llama3.2:1b"
 EMBED_MODEL = "nomic-embed-text"
 
 Settings.llm = Ollama(
     model=LLM_MODEL,
-    request_timeout=300.0
+    request_timeout=300.0,
+    context_window=1024
 )
 
 Settings.embed_model = OllamaEmbedding(

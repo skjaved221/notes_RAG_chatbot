@@ -5,3 +5,7 @@ __pycache__/
 *.pyc
 .streamlit/
 .DS_Store
+
+# Ignore personal notes if they are private
+# Remove this line only if you want to upload sample notes to GitHub
+data/
