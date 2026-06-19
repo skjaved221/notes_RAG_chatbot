@@ -7,7 +7,6 @@ ollama serve &
 sleep 10
 
 ollama pull qwen2.5:0.5b
-ollama pull llama3.2:1b
 ollama pull nomic-embed-text
 
 streamlit run app.py \
