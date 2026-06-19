@@ -193,9 +193,21 @@ with st.sidebar:
         index=1,
     )
 
-    debug_mode = st.checkbox("Show retrieval debug info", value=False)
-    show_full_chunks = st.checkbox("Show full retrieved chunks", value=False)
-    show_ocr_preview = st.checkbox("Show OCR preview", value=False)
+    debug_mode = st.checkbox(
+        "Show retrieval debug info",
+        value=False,
+        key="retrieval_debug_checkbox",
+    )
+    show_full_chunks = st.checkbox(
+        "Show full retrieved chunks",
+        value=False,
+        key="full_chunks_checkbox",
+    )
+    show_ocr_preview = st.checkbox(
+        "Show OCR preview",
+        value=False,
+        key= "show_ocr_preview_checkbox",
+    )
     st.divider()
 
     uploaded_files = st.file_uploader(
@@ -250,7 +262,6 @@ with st.sidebar:
 
         ocr_search_query = st.text_input("Search OCR text", placeholder="Example: Swing, MVC, platform")
 
-        show_ocr_preview = st.checkbox("Show OCR preview", value=False)
 
         if st.button("Clear chat"):
             st.session_state.messages = []
