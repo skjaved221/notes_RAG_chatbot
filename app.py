@@ -43,7 +43,7 @@ def setup_models(llm_model: str, context_window: int):
 
     Settings.embed_model = OllamaEmbedding(
         model_name=EMBED_MODEL,
-        base_url="http://localhost:11434",
+        base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
     )
 
     Settings.node_parser = SentenceSplitter(
@@ -176,7 +176,6 @@ with st.sidebar:
         [
             "llama3.2:1b",
             "qwen2.5:0.5b",
-            "llama3.2:3b",
         ],
         index=0,
     )
