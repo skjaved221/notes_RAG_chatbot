@@ -155,42 +155,52 @@ def run_ocr_script():
     if not script_path.exists():
         return False, "make_ocr_notes.py was not found in your project folder."
 
-    result = subprocess.run(
-        [sys.executable, str(script_path)],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            [sys.executable, str(script_path)],
+            capture_output=True,
+            text=True,
+            cwd=Path.cwd(),
+            timeout=600,
+        )
 
-    output = result.stdout + "\n" + result.stderr
+        output = result.stdout + "\n" + result.stderr
 
-    if result.returncode != 0:
-        return False, output
+        if result.returncode != 0:
+            return False, output
 
-    return True, output
+        return True, output
+
+    except subprocess.TimeoutExpired:
+        return False, "OCR took too long and timed out. Try uploading a smaller PDF."
+
+    except Exception as e:
+        return False, f"OCR failed: {e}"
+    
 
 with st.sidebar:
     st.header("Settings")
 
     llm_model = st.selectbox(
         "Choose local model",
-        [
-            "llama3.2:1b",
-            "qwen2.5:0.5b",
-        ],
+        ["qwen2.5:0.5b"],
         index=0,
+        key="llm_model_select",
     )
 
     top_k = st.slider(
         "Number of note chunks to retrieve",
         min_value=1,
-        max_value=8,
-        value=5,
+        max_value=5,
+        value=2,
+        key="top_k_slider",
     )
 
     context_window = st.selectbox(
         "Context window",
-        [1024, 2048, 4096],
-        index=1,
+        [1024, 2048],
+        index=0,
+        key="context_window_select",
     )
 
     debug_mode = st.checkbox(
@@ -198,25 +208,26 @@ with st.sidebar:
         value=False,
         key="retrieval_debug_checkbox",
     )
+
     show_full_chunks = st.checkbox(
         "Show full retrieved chunks",
         value=False,
         key="full_chunks_checkbox",
     )
-    show_ocr_preview = st.checkbox(
-        "Show OCR preview",
-        value=False,
-        key= "show_ocr_preview_checkbox",
-    )
+
     st.divider()
 
     uploaded_files = st.file_uploader(
         "Upload notes",
-        type=["pdf", "md", "txt", "docx", "pptx", "png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff"],
+        type=[
+            "pdf", "md", "txt", "docx", "pptx",
+            "png", "jpg", "jpeg", "webp", "bmp", "tif", "tiff"
+        ],
         accept_multiple_files=True,
+        key="notes_uploader",
     )
 
-    if st.button("Save uploaded files"):
+    if st.button("Save uploaded files", key="save_files_button"):
         DATA_DIR.mkdir(exist_ok=True)
 
         if uploaded_files:
@@ -228,45 +239,55 @@ with st.sidebar:
         else:
             st.warning("Please upload at least one file first.")
 
-    if st.button("Re-index notes"):
-        with st.spinner("Indexing your notes..."):
+    if st.button("Re-index notes", key="reindex_button"):
+        with st.spinner("Indexing your notes... This may take time on Hugging Face free CPU."):
             success = rebuild_index()
 
-            if success:
-                st.success("Index rebuilt successfully.")
+        if success:
+            st.success("Index rebuilt successfully.")
 
-        st.divider()
-        st.subheader("OCR Tools")
+    st.divider()
+    st.subheader("OCR Tools")
 
-        ocr_stats = get_ocr_stats()
+    ocr_stats = get_ocr_stats()
 
-        if ocr_stats["ocr_folder_exists"]:
-            st.caption("OCR folder found.")
+    if ocr_stats["ocr_folder_exists"]:
+        st.caption("OCR folder found.")
+    else:
+        st.caption("OCR folder not found yet.")
+
+    st.write(f"OCR text files: {ocr_stats['file_count']}")
+    st.write(f"OCR text characters: {ocr_stats['total_characters']}")
+
+    if st.button("Generate OCR text files", key="generate_ocr_button"):
+        with st.spinner("Running OCR on uploaded PDFs/images... This may take time on Hugging Face free CPU."):
+            success, output = run_ocr_script()
+
+        if success:
+            st.success("OCR text files generated.")
         else:
-            st.caption("OCR folder not found yet.")
+            st.error("OCR generation failed.")
 
-        st.write(f"OCR text files: {ocr_stats['file_count']}")
-        st.write(f"OCR text characters: {ocr_stats['total_characters']}")
+        with st.expander("OCR script output"):
+            st.text(output)
 
-        if st.button("Generate OCR text files"):
-            with st.spinner("Running OCR on PDFs/images... This may take some time."):
-                success, output = run_ocr_script()
+    ocr_search_query = st.text_input(
+        "Search OCR text",
+        placeholder="Example: Swing, MVC, platform",
+        key="ocr_search_input",
+    )
 
-            if success:
-                st.success("OCR text files generated.")
-            else:
-                st.error("OCR generation failed.")
+    show_ocr_preview = st.checkbox(
+        "Show OCR preview",
+        value=False,
+        key="show_ocr_preview_checkbox",
+    )
 
-            with st.expander("OCR script output"):
-                st.text(output)
+    st.divider()
 
-        ocr_search_query = st.text_input("Search OCR text", placeholder="Example: Swing, MVC, platform")
-
-
-        if st.button("Clear chat"):
-            st.session_state.messages = []
-            st.rerun()
-
+    if st.button("Clear chat", key="clear_chat_button"):
+        st.session_state.messages = []
+        st.rerun()
 
 setup_models(llm_model, context_window)
 
